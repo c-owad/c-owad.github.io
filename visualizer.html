@@ -5,269 +5,339 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Neuro-Structure Laboratory</title>
     <style>
-        /* --- YOUR "DARK SCIENTIFIC" THEME --- */
-        body {
-            margin: 0;
-            background-color: rgb(15, 15, 25); /* Your BG_COLOR */
-            color: #ffffff;
-            font-family: 'Arial', sans-serif;
-            overflow: hidden; /* Prevent scrolling */
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+        body { margin: 0; background-color: #0f0f19; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+        
+        /* SIDEBAR MENU */
+        #sidebar {
+            position: absolute; left: 0; top: 0; bottom: 0; width: 250px;
+            background: rgba(0,0,0,0.8); border-right: 1px solid #333;
+            padding: 20px; z-index: 20; display: flex; flex-direction: column;
         }
-
-        /* --- UI OVERLAY --- */
-        header {
-            position: absolute;
-            top: 20px;
-            text-align: center;
-            z-index: 10;
-            pointer-events: none; /* Let clicks pass through to canvas */
+        h2 { color: #00ffc8; margin-top: 0; font-size: 18px; text-transform: uppercase; letter-spacing: 1px; }
+        .molecule-btn {
+            background: #222; border: 1px solid #444; color: #ccc;
+            padding: 12px; margin-bottom: 10px; cursor: pointer;
+            text-align: left; border-radius: 6px; transition: 0.2s;
         }
+        .molecule-btn:hover { background: #333; border-color: #00ffc8; color: white; }
+        .molecule-btn.active { background: #00ffc8; color: black; border-color: #00ffc8; font-weight: bold; }
 
-        h1 {
-            margin: 0;
-            color: #00ffc8; /* Cyan title */
-            font-size: 24px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-        }
-
-        .subtitle {
-            font-size: 14px;
-            color: #8899a6;
-            margin-top: 5px;
-        }
-
-        /* --- CONTROLS CONTAINER --- */
-        .controls {
-            position: absolute;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: rgba(0, 0, 0, 0.7);
-            padding: 15px 25px;
-            border-radius: 12px;
-            border: 1px solid #333;
-            display: flex;
-            gap: 15px;
-            z-index: 10;
-        }
-
-        input {
-            background: #222;
-            border: 1px solid #444;
-            color: white;
-            padding: 8px;
-            border-radius: 4px;
-            width: 80px;
-            text-align: center;
-        }
-
-        button {
-            background: #00ffc8;
-            border: none;
-            padding: 8px 16px;
-            border-radius: 4px;
-            cursor: pointer;
-            font-weight: bold;
-            color: #000;
-            transition: all 0.2s;
-        }
-
-        button:hover { background: #fff; }
-
-        /* Gold button for your "Simulate" feature */
-        #simBtn {
-            background: #ffd700; /* Gold */
-        }
-
-        /* --- BACK BUTTON --- */
-        .back-link {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            color: #666;
-            text-decoration: none;
-            font-size: 14px;
-            border: 1px solid #333;
-            padding: 8px 12px;
-            border-radius: 6px;
-            z-index: 20;
-        }
-        .back-link:hover { color: white; border-color: white; }
-
-        canvas {
-            display: block;
-            cursor: grab;
-        }
+        /* MAIN CANVAS AREA */
+        #canvas-container { position: absolute; left: 250px; top: 0; right: 0; bottom: 0; }
+        canvas { display: block; width: 100%; height: 100%; cursor: grab; }
         canvas:active { cursor: grabbing; }
+
+        /* HUD OVERLAYS */
+        #hud { position: absolute; top: 20px; left: 20px; pointer-events: none; }
+        #molecule-title { font-size: 24px; font-weight: bold; color: white; }
+        #molecule-desc { font-size: 14px; color: #00ffc8; margin-top: 5px; max-width: 400px; }
+
+        /* CONTROLS */
+        #controls { position: absolute; bottom: 30px; right: 30px; display: flex; gap: 10px; }
+        button.action-btn {
+            background: #ffd700; border: none; padding: 10px 20px;
+            font-weight: bold; cursor: pointer; border-radius: 4px;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+        }
+        button.action-btn:hover { background: white; }
+
+        /* LOADING SPINNER */
+        #loader {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 20px; color: #00ffc8; display: none;
+        }
     </style>
 </head>
 <body>
 
-    <a href="index.html" class="back-link">← Back to Portfolio</a>
+    <div id="sidebar">
+        <h2>Select Target</h2>
+        <div id="menu-list"></div>
+        <div style="margin-top: auto; font-size: 12px; color: #666;">
+            Scroll to Zoom<br>Drag to Rotate
+        </div>
+        <a href="index.html" style="color: #666; text-decoration: none; margin-top: 10px; font-size: 12px;">← Back to Portfolio</a>
+    </div>
 
-    <header>
-        <h1>Neuro-Structure Laboratory</h1>
-        <div class="subtitle" id="statusText">Interactive 3D Protein Visualizer</div>
-    </header>
-
-    <canvas id="moleculeCanvas"></canvas>
-
-    <div class="controls">
-        <input type="text" id="pdbInput" value="3PBL" placeholder="PDB ID">
-        <button onclick="fetchMolecule()">LOAD</button>
-        <button id="simBtn" onclick="toggleSimulation()">SIMULATE</button>
+    <div id="canvas-container">
+        <div id="hud">
+            <div id="molecule-title">Select a Protein</div>
+            <div id="molecule-desc"></div>
+        </div>
+        <div id="loader">Fetching Structure...</div>
+        <canvas id="simCanvas"></canvas>
+        
+        <div id="controls">
+            <button class="action-btn" onclick="toggleSimulation()" id="simBtn">INJECT LIGAND</button>
+        </div>
     </div>
 
 <script>
-    // --- CONFIG ---
-    // !!! IMPORTANT: CHANGE THIS URL WHEN YOU DEPLOY YOUR BACKEND !!!
-    // For now, it points to your local python script
-    const API_URL = "https://one5113hw4backend.onrender.com/api/molecule";
-    
-    const canvas = document.getElementById('moleculeCanvas');
-    const ctx = canvas.getContext('2d');
-    
-    // Resize canvas to full screen
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    // --- CONFIGURATION ---
+    // UPDATE THIS URL TO YOUR RENDER URL WHEN DEPLOYING
+    const API_URL = "https://one5113hw4backend.onrender.com/api/molecule"; 
+
+    // The "Database" of proteins
+    const MOLECULES = [
+        { 
+            name: "Dopamine Receptor", 
+            id: "3PBL", 
+            desc: "The 'Pleasure' receptor. Primary target for antipsychotics.",
+            labels: [{text: "Ligand Pocket", x: 10, y: -5, z: 0}, {text: "Helix Bundle", x: -15, y: 10, z: 5}]
+        },
+        { 
+            name: "Serotonin Transporter", 
+            id: "5I6X", 
+            desc: "Regulates mood and anxiety. Target of SSRI antidepressants.",
+            labels: [{text: "Central Cavity", x: 0, y: 0, z: 0}]
+        },
+        { 
+            name: "GABA Receptor", 
+            id: "4COF", 
+            desc: "The 'Calm' receptor. Activated by sedatives and alcohol.",
+            labels: [{text: "Ion Channel", x: 0, y: 20, z: 0}]
+        },
+        { 
+            name: "Adrenaline Receptor", 
+            id: "3SN6", 
+            desc: "Triggers the 'Fight or Flight' response.",
+            labels: [{text: "G-Protein Interface", x: 0, y: -30, z: 0}]
+        }
+    ];
+
+    // Colors for different chains (Cyan, Purple, Green, Orange)
+    const CHAIN_COLORS = ["#00ffc8", "#bd00ff", "#00ff00", "#ff8800"];
 
     // --- STATE ---
     let points = [];
+    let currentMolecule = null;
     let center = {x: 0, y: 0, z: 0};
-    let camera = { x: 0, y: 0, scale: 12 };
+    let camera = { x: 0, y: 0, scale: 14 };
     let isDragging = false;
     let lastMouse = { x: 0, y: 0 };
     
     // Animation State
     let animating = false;
-    let ligandY = -80;
-    let time = 0;
+    let animTime = 0;
 
-    // --- MATH HELPERS (Ported from your Python) ---
-    function rotatePoint(x, y, z, cx, cy, cz, ax, ay) {
-        x -= cx; y -= cy; z -= cz;
-        
-        // Rotate Y
-        let nx = x * Math.cos(ay) + z * Math.sin(ay);
-        let nz = -x * Math.sin(ay) + z * Math.cos(ay);
-        
-        // Rotate X
-        let ny = y * Math.cos(ax) - nz * Math.sin(ax);
-        nz = y * Math.sin(ax) + nz * Math.cos(ax);
-        
-        return {x: nx, y: ny, z: nz};
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // --- INITIALIZATION ---
+    function init() {
+        // Build Menu
+        const menu = document.getElementById('menu-list');
+        MOLECULES.forEach(mol => {
+            const btn = document.createElement('div');
+            btn.className = 'molecule-btn';
+            btn.innerText = mol.name;
+            btn.onclick = () => loadMolecule(mol, btn);
+            menu.appendChild(btn);
+        });
+
+        // Resize Handling
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Start Loop
+        requestAnimationFrame(draw);
     }
 
+    function resize() {
+        canvas.width = document.getElementById('canvas-container').offsetWidth;
+        canvas.height = document.getElementById('canvas-container').offsetHeight;
+    }
+
+    // --- CORE LOGIC ---
+    async function loadMolecule(mol, btnElement) {
+        // UI Updates
+        document.querySelectorAll('.molecule-btn').forEach(b => b.classList.remove('active'));
+        if(btnElement) btnElement.classList.add('active');
+        
+        document.getElementById('molecule-title').innerText = mol.name;
+        document.getElementById('molecule-desc').innerText = mol.desc;
+        document.getElementById('loader').style.display = 'block';
+        
+        currentMolecule = mol;
+        animating = false; // Stop animation on switch
+        document.getElementById('simBtn').innerText = "INJECT LIGAND";
+
+        try {
+            const res = await fetch(`${API_URL}/${mol.id}`);
+            const data = await res.json();
+            
+            points = data.points;
+            center = { x: data.center[0], y: data.center[1], z: data.center[2] };
+            // Reset Camera
+            camera.x = 0; camera.y = 0; camera.scale = 14;
+        } catch (e) {
+            alert("Error loading molecule. Make sure backend is running.");
+        }
+        document.getElementById('loader').style.display = 'none';
+    }
+
+    // --- DRAWING ---
     function project(x, y, z) {
         const fov = 400;
-        const dist = (z + fov) <= 0 ? 0.001 : fov / (z + fov);
+        // Apply camera rotation
+        let rx = x - center.x; 
+        let ry = y - center.y; 
+        let rz = z - center.z;
+
+        // Rotate Y
+        let tx = rx * Math.cos(camera.y) + rz * Math.sin(camera.y);
+        let tz = -rx * Math.sin(camera.y) + rz * Math.cos(camera.y);
+        rx = tx; rz = tz;
+
+        // Rotate X
+        let ty = ry * Math.cos(camera.x) - rz * Math.sin(camera.x);
+        tz = ry * Math.sin(camera.x) + rz * Math.cos(camera.x);
+        ry = ty; rz = tz;
+
+        const scale = camera.scale;
+        const dist = (rz + fov) <= 0 ? 0.001 : fov / (rz + fov);
+        
         return {
-            x: (x * dist) * camera.scale + canvas.width/2,
-            y: (y * dist) * camera.scale + canvas.height/2,
-            scale: dist * camera.scale
+            x: (rx * dist) * scale + canvas.width/2,
+            y: (ry * dist) * scale + canvas.height/2,
+            z: rz, // Return depth for sorting if needed
+            scale: dist * scale,
+            visible: rz > -300 // Simple clipping
         };
     }
 
-    // --- DRAW LOOP ---
     function draw() {
-        // Clear background
-        ctx.fillStyle = "rgb(15, 15, 25)";
+        // Clear
+        ctx.fillStyle = "#0f0f19";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // 1. Draw Backbone (Cyan Ribbon)
-        ctx.strokeStyle = "rgba(0, 255, 255, 0.6)"; // Cyan with opacity
-        ctx.lineWidth = 2;
-        ctx.beginPath();
+        if (points.length === 0) return requestAnimationFrame(draw);
 
+        ctx.lineWidth = 2;
+        let currentChain = null;
+        let colorIdx = 0;
+
+        ctx.beginPath();
         let first = true;
-        for (let p of points) {
-            if (p === null) {
-                first = true;
-                ctx.stroke();
+
+        for (let i = 0; i < points.length; i++) {
+            let p = points[i];
+            
+            // Handle Chain Breaks (New color, new line)
+            if (p === null || (p.chain && p.chain !== currentChain)) {
+                ctx.stroke(); // Draw previous chain
+                
+                if (p && p.chain !== currentChain) {
+                    currentChain = p.chain;
+                    colorIdx = (colorIdx + 1) % CHAIN_COLORS.length;
+                }
+                
+                ctx.strokeStyle = CHAIN_COLORS[colorIdx];
                 ctx.beginPath();
+                first = true;
                 continue;
             }
 
-            let r = rotatePoint(p[0], p[1], p[2], center.x, center.y, center.z, camera.x, camera.y);
-            let s = project(r.x, r.y, r.z);
+            let proj = project(p.x, p.y, p.z);
+            if (!proj.visible) continue;
 
-            if (first) { ctx.moveTo(s.x, s.y); first = false; }
-            else { ctx.lineTo(s.x, s.y); }
+            if (first) { ctx.moveTo(proj.x, proj.y); first = false; }
+            else { ctx.lineTo(proj.x, proj.y); }
         }
         ctx.stroke();
 
-        // 2. Draw Ligand (Gold Sphere Animation)
-        if (animating) {
-            // Replicate your "Simulate" logic: sin wave bobbing
-            ligandY = Math.sin(Date.now() * 0.005) * 20; 
-
-            // Ligand position relative to center
-            let r = rotatePoint(0, ligandY, 0, 0, 0, 0, camera.x, camera.y);
-            let s = project(r.x, r.y, r.z);
+        // DRAW LABELS
+        if (currentMolecule && currentMolecule.labels) {
+            ctx.font = "bold 12px Arial";
+            ctx.fillStyle = "white";
+            ctx.textAlign = "center";
             
-            // Draw Gold Sphere
-            ctx.fillStyle = "#ffd700";
+            currentMolecule.labels.forEach(lbl => {
+                // Project label position relative to center
+                let lx = center.x + lbl.x;
+                let ly = center.y + lbl.y;
+                let lz = center.z + lbl.z;
+                
+                let proj = project(lx, ly, lz);
+                if (proj.visible) {
+                    // Draw Label Box
+                    let textWidth = ctx.measureText(lbl.text).width;
+                    ctx.fillStyle = "rgba(0,0,0,0.7)";
+                    ctx.fillRect(proj.x - textWidth/2 - 4, proj.y - 14, textWidth + 8, 18);
+                    
+                    // Draw Text
+                    ctx.fillStyle = "#00ffc8";
+                    ctx.fillText(lbl.text, proj.x, proj.y);
+                    
+                    // Draw Line to point
+                    ctx.strokeStyle = "rgba(255,255,255,0.3)";
+                    ctx.beginPath();
+                    ctx.moveTo(proj.x, proj.y + 5);
+                    ctx.lineTo(proj.x, proj.y + 20); // Just a little indicator line
+                    ctx.stroke();
+                }
+            });
+        }
+
+        // DRAW ANIMATION (The "Neurotransmitter")
+        if (animating) {
+            animTime += 0.05;
+            // Spiraling inward logic
+            let radius = Math.max(5, 60 - animTime * 10); // Shrinks from 60 to 5
+            let angle = animTime * 3;
+            let ay = Math.sin(animTime) * 10;
+            
+            let ax = center.x + Math.cos(angle) * radius;
+            let az = center.z + Math.sin(angle) * radius;
+            let finalY = center.y + ay;
+
+            let proj = project(ax, finalY, az);
+            
+            // Draw Glowing Orb
+            let size = 8 * (proj.scale / 10);
+            let gradient = ctx.createRadialGradient(proj.x, proj.y, 2, proj.x, proj.y, size);
+            gradient.addColorStop(0, "white");
+            gradient.addColorStop(1, "gold");
+            
+            ctx.fillStyle = gradient;
             ctx.beginPath();
-            ctx.arc(s.x, s.y, 8 * s.scale, 0, Math.PI * 2);
+            ctx.arc(proj.x, proj.y, size, 0, Math.PI * 2);
             ctx.fill();
+
+            // Reset animation if it hits center
+            if (radius <= 5) animTime = 0; 
         }
 
         requestAnimationFrame(draw);
     }
 
-    // --- API & CONTROLS ---
-    async function fetchMolecule() {
-        const id = document.getElementById('pdbInput').value;
-        const status = document.getElementById('statusText');
-        
-        status.innerText = "Accessing PDB Database...";
-        status.style.color = "#ffd700";
-
-        try {
-            const res = await fetch(`${API_URL}/${id}`);
-            const data = await res.json();
-            
-            if (data.error) throw new Error(data.error);
-
-            points = data.points;
-            // Center the camera on the new molecule
-            center = { x: data.center[0], y: data.center[1], z: data.center[2] };
-            
-            status.innerText = `Viewing Structure: ${id.toUpperCase()}`;
-            status.style.color = "#00ffc8";
-        } catch (e) {
-            status.innerText = "Error: Could not load molecule.";
-            status.style.color = "#ff4444";
-        }
-    }
-
+    // --- INTERACTIONS ---
     function toggleSimulation() {
         animating = !animating;
-        document.getElementById('simBtn').innerText = animating ? "STOP" : "SIMULATE";
+        document.getElementById('simBtn').innerText = animating ? "STOP SIMULATION" : "INJECT LIGAND";
+        animTime = 0;
     }
 
-    // --- MOUSE DRAG LOGIC ---
+    // Mouse Drag
     canvas.addEventListener('mousedown', e => { isDragging = true; lastMouse = { x: e.clientX, y: e.clientY }; });
     window.addEventListener('mouseup', () => isDragging = false);
-    
     canvas.addEventListener('mousemove', e => {
         if (!isDragging) return;
         const dx = e.clientX - lastMouse.x;
         const dy = e.clientY - lastMouse.y;
-        
-        camera.y += dx * 0.01; // Rotate Y
-        camera.x += dy * 0.01; // Rotate X
-        
+        camera.y += dx * 0.01;
+        camera.x += dy * 0.01;
         lastMouse = { x: e.clientX, y: e.clientY };
     });
 
-    // Start loop
-    draw();
-    fetchMolecule(); // Load default on start
+    // Zoom
+    canvas.addEventListener('wheel', e => {
+        e.preventDefault();
+        camera.scale += e.deltaY * -0.01;
+        camera.scale = Math.max(2, Math.min(camera.scale, 50)); // Clamp zoom
+    });
+
+    init();
 </script>
 </body>
 </html>
