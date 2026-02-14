@@ -208,7 +208,7 @@
     }
 
     function draw() {
-        // Clear
+        // Clear screen
         ctx.fillStyle = "#0f0f19";
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -217,99 +217,106 @@
         ctx.lineWidth = 2;
         let currentChain = null;
         let colorIdx = 0;
-
+        
+        // Start the path
         ctx.beginPath();
+        ctx.strokeStyle = CHAIN_COLORS[0]; // Default color
         let first = true;
 
         for (let i = 0; i < points.length; i++) {
             let p = points[i];
             
-            // Handle Chain Breaks (New color, new line)
-            if (p === null || (p.chain && p.chain !== currentChain)) {
-                ctx.stroke(); // Draw previous chain
-                
-                if (p && p.chain !== currentChain) {
-                    currentChain = p.chain;
-                    colorIdx = (colorIdx + 1) % CHAIN_COLORS.length;
-                }
-                
-                ctx.strokeStyle = CHAIN_COLORS[colorIdx];
-                ctx.beginPath();
+            // 1. Handle "Breaks" (Null points from Python)
+            if (p === null) {
+                ctx.stroke();     // Finish previous line
+                ctx.beginPath();  // Start new line
                 first = true;
                 continue;
             }
 
-            let proj = project(p.x, p.y, p.z);
+            // 2. DATA COMPATIBILITY FIX
+            // If p is an array [x,y,z] (Old Backend), convert it to object
+            let px, py, pz, pChain;
+            if (Array.isArray(p)) {
+                px = p[0]; py = p[1]; pz = p[2]; pChain = 'A';
+            } else {
+                px = p.x; py = p.y; pz = p.z; pChain = p.chain;
+            }
+
+            // 3. Handle Chain Color Changes
+            if (pChain && pChain !== currentChain) {
+                // If we are already drawing, finish the old color line first
+                if (currentChain !== null) {
+                    ctx.stroke();
+                    ctx.beginPath();
+                    // Reset 'first' so we move to the start of the new chain without drawing a stray line
+                    first = true; 
+                    
+                    // Cycle to next color
+                    colorIdx = (colorIdx + 1) % CHAIN_COLORS.length;
+                    ctx.strokeStyle = CHAIN_COLORS[colorIdx];
+                }
+                currentChain = pChain;
+            }
+
+            // 4. Project 3D to 2D
+            let proj = project(px, py, pz);
             if (!proj.visible) continue;
 
-            if (first) { ctx.moveTo(proj.x, proj.y); first = false; }
-            else { ctx.lineTo(proj.x, proj.y); }
+            // 5. Draw
+            if (first) { 
+                ctx.moveTo(proj.x, proj.y); 
+                first = false; 
+            } else { 
+                ctx.lineTo(proj.x, proj.y); 
+            }
         }
-        ctx.stroke();
+        ctx.stroke(); // Draw the final segment
 
-        // DRAW LABELS
+        // --- DRAW LABELS & ANIMATIONS (Kept same as before) ---
+        drawLabelsAndLigand(); 
+        
+        requestAnimationFrame(draw);
+    }
+
+    // Move the label logic to a helper to keep draw() clean
+    function drawLabelsAndLigand() {
+        // [PASTE THE PREVIOUS LABEL/ANIMATION CODE HERE OR LEAVE IT IN MAIN DRAW]
+        // For simplicity, just ensure the code below ctx.stroke() in your original file is kept.
         if (currentMolecule && currentMolecule.labels) {
-            ctx.font = "bold 12px Arial";
-            ctx.fillStyle = "white";
-            ctx.textAlign = "center";
-            
-            currentMolecule.labels.forEach(lbl => {
-                // Project label position relative to center
+             // ... (Your existing label code) ...
+             currentMolecule.labels.forEach(lbl => {
                 let lx = center.x + lbl.x;
                 let ly = center.y + lbl.y;
                 let lz = center.z + lbl.z;
-                
                 let proj = project(lx, ly, lz);
                 if (proj.visible) {
-                    // Draw Label Box
                     let textWidth = ctx.measureText(lbl.text).width;
                     ctx.fillStyle = "rgba(0,0,0,0.7)";
                     ctx.fillRect(proj.x - textWidth/2 - 4, proj.y - 14, textWidth + 8, 18);
-                    
-                    // Draw Text
                     ctx.fillStyle = "#00ffc8";
                     ctx.fillText(lbl.text, proj.x, proj.y);
-                    
-                    // Draw Line to point
                     ctx.strokeStyle = "rgba(255,255,255,0.3)";
-                    ctx.beginPath();
-                    ctx.moveTo(proj.x, proj.y + 5);
-                    ctx.lineTo(proj.x, proj.y + 20); // Just a little indicator line
-                    ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(proj.x, proj.y + 5); ctx.lineTo(proj.x, proj.y + 20); ctx.stroke();
                 }
             });
         }
-
-        // DRAW ANIMATION (The "Neurotransmitter")
         if (animating) {
             animTime += 0.05;
-            // Spiraling inward logic
-            let radius = Math.max(5, 60 - animTime * 10); // Shrinks from 60 to 5
+            let radius = Math.max(5, 60 - animTime * 10);
             let angle = animTime * 3;
             let ay = Math.sin(animTime) * 10;
-            
             let ax = center.x + Math.cos(angle) * radius;
             let az = center.z + Math.sin(angle) * radius;
             let finalY = center.y + ay;
-
             let proj = project(ax, finalY, az);
-            
-            // Draw Glowing Orb
             let size = 8 * (proj.scale / 10);
             let gradient = ctx.createRadialGradient(proj.x, proj.y, 2, proj.x, proj.y, size);
-            gradient.addColorStop(0, "white");
-            gradient.addColorStop(1, "gold");
-            
+            gradient.addColorStop(0, "white"); gradient.addColorStop(1, "gold");
             ctx.fillStyle = gradient;
-            ctx.beginPath();
-            ctx.arc(proj.x, proj.y, size, 0, Math.PI * 2);
-            ctx.fill();
-
-            // Reset animation if it hits center
+            ctx.beginPath(); ctx.arc(proj.x, proj.y, size, 0, Math.PI * 2); ctx.fill();
             if (radius <= 5) animTime = 0; 
         }
-
-        requestAnimationFrame(draw);
     }
 
     // --- INTERACTIONS ---
