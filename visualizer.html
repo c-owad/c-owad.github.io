@@ -280,15 +280,18 @@
     }
 
     // Move the label logic to a helper to keep draw() clean
+// --- UPDATED HELPER FUNCTION ---
     function drawLabelsAndLigand() {
-        // [PASTE THE PREVIOUS LABEL/ANIMATION CODE HERE OR LEAVE IT IN MAIN DRAW]
-        // For simplicity, just ensure the code below ctx.stroke() in your original file is kept.
+        // 1. DRAW LABELS (Kept the same)
         if (currentMolecule && currentMolecule.labels) {
-             // ... (Your existing label code) ...
-             currentMolecule.labels.forEach(lbl => {
+            ctx.font = "bold 12px Arial";
+            ctx.textAlign = "center";
+            
+            currentMolecule.labels.forEach(lbl => {
                 let lx = center.x + lbl.x;
                 let ly = center.y + lbl.y;
                 let lz = center.z + lbl.z;
+                
                 let proj = project(lx, ly, lz);
                 if (proj.visible) {
                     let textWidth = ctx.measureText(lbl.text).width;
@@ -301,29 +304,71 @@
                 }
             });
         }
+
+        // 2. NEW REALISTIC LIGAND ANIMATION
         if (animating) {
-            animTime += 0.05;
-            let radius = Math.max(5, 60 - animTime * 10);
-            let angle = animTime * 3;
-            let ay = Math.sin(animTime) * 10;
-            let ax = center.x + Math.cos(angle) * radius;
-            let az = center.z + Math.sin(angle) * radius;
-            let finalY = center.y + ay;
-            let proj = project(ax, finalY, az);
-            let size = 8 * (proj.scale / 10);
-            let gradient = ctx.createRadialGradient(proj.x, proj.y, 2, proj.x, proj.y, size);
-            gradient.addColorStop(0, "white"); gradient.addColorStop(1, "gold");
+            // A. Calculate Progress (0.0 to 1.0)
+            // We increment animTime slower for a smoother approach
+            if (animTime < 1.0) {
+                animTime += 0.008; 
+            }
+            
+            // B. Define Start (Outside) and End (Center)
+            // Start high up and slightly offset
+            const startX = center.x + 40;
+            const startY = center.y - 80;
+            const startZ = center.z + 20;
+
+            const endX = center.x;
+            const endY = center.y;
+            const endZ = center.z;
+
+            // C. Interpolate (Lerp) position
+            // 't' is our eased progress (starts fast, slows down at end)
+            let t = animTime;
+            let ease = 1 - Math.pow(1 - t, 3); // Cubic Ease Out
+
+            let currX = startX + (endX - startX) * ease;
+            let currY = startY + (endY - startY) * ease;
+            let currZ = startZ + (endZ - startZ) * ease;
+
+            // D. Add "Brownian Motion" (Jitter)
+            // Real molecules jitter. We add small sin/cos offsets based on time
+            let jitter = (1.0 - ease) * 5; // Jitter reduces as it docks
+            currX += Math.sin(Date.now() * 0.005) * jitter;
+            currY += Math.cos(Date.now() * 0.005) * jitter;
+
+            // E. Draw the Ligand
+            let proj = project(currX, currY, currZ);
+            
+            // Pulse size when docked
+            let pulse = (animTime >= 1.0) ? Math.sin(Date.now() * 0.005) * 2 : 0;
+            let size = (8 + pulse) * (proj.scale / 10);
+
+            // Draw Glow
+            let gradient = ctx.createRadialGradient(proj.x, proj.y, 2, proj.x, proj.y, size * 2);
+            gradient.addColorStop(0, "rgba(255, 215, 0, 1)");   // Solid Gold center
+            gradient.addColorStop(0.4, "rgba(255, 215, 0, 0.4)"); // Semi-transparent gold
+            gradient.addColorStop(1, "rgba(255, 215, 0, 0)");    // Fade out
+
             ctx.fillStyle = gradient;
-            ctx.beginPath(); ctx.arc(proj.x, proj.y, size, 0, Math.PI * 2); ctx.fill();
-            if (radius <= 5) animTime = 0; 
+            ctx.beginPath();
+            ctx.arc(proj.x, proj.y, size * 2, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Draw Core
+            ctx.fillStyle = "#ffd700";
+            ctx.beginPath();
+            ctx.arc(proj.x, proj.y, size * 0.6, 0, Math.PI * 2);
+            ctx.fill();
         }
     }
 
     // --- INTERACTIONS ---
     function toggleSimulation() {
         animating = !animating;
-        document.getElementById('simBtn').innerText = animating ? "STOP SIMULATION" : "INJECT LIGAND";
-        animTime = 0;
+        document.getElementById('simBtn').innerText = animating ? "RESET SIMULATION" : "INJECT LIGAND";
+        animTime = 0; // Reset progress to start
     }
 
     // Mouse Drag
