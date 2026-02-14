@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neuro-Structure Laboratory</title>
+    <style>
+        /* --- YOUR "DARK SCIENTIFIC" THEME --- */
+        body {
+            margin: 0;
+            background-color: rgb(15, 15, 25); /* Your BG_COLOR */
+            color: #ffffff;
+            font-family: 'Arial', sans-serif;
+            overflow: hidden; /* Prevent scrolling */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* --- UI OVERLAY --- */
+        header {
+            position: absolute;
+            top: 20px;
+            text-align: center;
+            z-index: 10;
+            pointer-events: none; /* Let clicks pass through to canvas */
+        }
+
+        h1 {
+            margin: 0;
+            color: #00ffc8; /* Cyan title */
+            font-size: 24px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #8899a6;
+            margin-top: 5px;
+        }
+
+        /* --- CONTROLS CONTAINER --- */
+        .controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px 25px;
+            border-radius: 12px;
+            border: 1px solid #333;
+            display: flex;
+            gap: 15px;
+            z-index: 10;
+        }
+
+        input {
+            background: #222;
+            border: 1px solid #444;
+            color: white;
+            padding: 8px;
+            border-radius: 4px;
+            width: 80px;
+            text-align: center;
+        }
+
+        button {
+            background: #00ffc8;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #000;
+            transition: all 0.2s;
+        }
+
+        button:hover { background: #fff; }
+
+        /* Gold button for your "Simulate" feature */
+        #simBtn {
+            background: #ffd700; /* Gold */
+        }
+
+        /* --- BACK BUTTON --- */
+        .back-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #666;
+            text-decoration: none;
+            font-size: 14px;
+            border: 1px solid #333;
+            padding: 8px 12px;
+            border-radius: 6px;
+            z-index: 20;
+        }
+        .back-link:hover { color: white; border-color: white; }
+
+        canvas {
+            display: block;
+            cursor: grab;
+        }
+        canvas:active { cursor: grabbing; }
+    </style>
+</head>
+<body>
+
+    <a href="index.html" class="back-link">← Back to Portfolio</a>
+
+    <header>
+        <h1>Neuro-Structure Laboratory</h1>
+        <div class="subtitle" id="statusText">Interactive 3D Protein Visualizer</div>
+    </header>
+
+    <canvas id="moleculeCanvas"></canvas>
+
+    <div class="controls">
+        <input type="text" id="pdbInput" value="3PBL" placeholder="PDB ID">
+        <button onclick="fetchMolecule()">LOAD</button>
+        <button id="simBtn" onclick="toggleSimulation()">SIMULATE</button>
+    </div>
+
+<script>
+    // --- CONFIG ---
+    // !!! IMPORTANT: CHANGE THIS URL WHEN YOU DEPLOY YOUR BACKEND !!!
+    // For now, it points to your local python script
+    const API_URL = "http://127.0.0.1:5000/api/molecule"; 
+    
+    const canvas = document.getElementById('moleculeCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // Resize canvas to full screen
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // --- STATE ---
+    let points = [];
+    let center = {x: 0, y: 0, z: 0};
+    let camera = { x: 0, y: 0, scale: 12 };
+    let isDragging = false;
+    let lastMouse = { x: 0, y: 0 };
+    
+    // Animation State
+    let animating = false;
+    let ligandY = -80;
+    let time = 0;
+
+    // --- MATH HELPERS (Ported from your Python) ---
+    function rotatePoint(x, y, z, cx, cy, cz, ax, ay) {
+        x -= cx; y -= cy; z -= cz;
+        
+        // Rotate Y
+        let nx = x * Math.cos(ay) + z * Math.sin(ay);
+        let nz = -x * Math.sin(ay) + z * Math.cos(ay);
+        
+        // Rotate X
+        let ny = y * Math.cos(ax) - nz * Math.sin(ax);
+        nz = y * Math.sin(ax) + nz * Math.cos(ax);
+        
+        return {x: nx, y: ny, z: nz};
+    }
+
+    function project(x, y, z) {
+        const fov = 400;
+        const dist = (z + fov) <= 0 ? 0.001 : fov / (z + fov);
+        return {
+            x: (x * dist) * camera.scale + canvas.width/2,
+            y: (y * dist) * camera.scale + canvas.height/2,
+            scale: dist * camera.scale
+        };
+    }
+
+    // --- DRAW LOOP ---
+    function draw() {
+        // Clear background
+        ctx.fillStyle = "rgb(15, 15, 25)";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 1. Draw Backbone (Cyan Ribbon)
+        ctx.strokeStyle = "rgba(0, 255, 255, 0.6)"; // Cyan with opacity
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+
+        let first = true;
+        for (let p of points) {
+            if (p === null) {
+                first = true;
+                ctx.stroke();
+                ctx.beginPath();
+                continue;
+            }
+
+            let r = rotatePoint(p[0], p[1], p[2], center.x, center.y, center.z, camera.x, camera.y);
+            let s = project(r.x, r.y, r.z);
+
+            if (first) { ctx.moveTo(s.x, s.y); first = false; }
+            else { ctx.lineTo(s.x, s.y); }
+        }
+        ctx.stroke();
+
+        // 2. Draw Ligand (Gold Sphere Animation)
+        if (animating) {
+            // Replicate your "Simulate" logic: sin wave bobbing
+            ligandY = Math.sin(Date.now() * 0.005) * 20; 
+
+            // Ligand position relative to center
+            let r = rotatePoint(0, ligandY, 0, 0, 0, 0, camera.x, camera.y);
+            let s = project(r.x, r.y, r.z);
+            
+            // Draw Gold Sphere
+            ctx.fillStyle = "#ffd700";
+            ctx.beginPath();
+            ctx.arc(s.x, s.y, 8 * s.scale, 0, Math.PI * 2);
+            ctx.fill();
+        }
+
+        requestAnimationFrame(draw);
+    }
+
+    // --- API & CONTROLS ---
+    async function fetchMolecule() {
+        const id = document.getElementById('pdbInput').value;
+        const status = document.getElementById('statusText');
+        
+        status.innerText = "Accessing PDB Database...";
+        status.style.color = "#ffd700";
+
+        try {
+            const res = await fetch(`${API_URL}/${id}`);
+            const data = await res.json();
+            
+            if (data.error) throw new Error(data.error);
+
+            points = data.points;
+            // Center the camera on the new molecule
+            center = { x: data.center[0], y: data.center[1], z: data.center[2] };
+            
+            status.innerText = `Viewing Structure: ${id.toUpperCase()}`;
+            status.style.color = "#00ffc8";
+        } catch (e) {
+            status.innerText = "Error: Could not load molecule.";
+            status.style.color = "#ff4444";
+        }
+    }
+
+    function toggleSimulation() {
+        animating = !animating;
+        document.getElementById('simBtn').innerText = animating ? "STOP" : "SIMULATE";
+    }
+
+    // --- MOUSE DRAG LOGIC ---
+    canvas.addEventListener('mousedown', e => { isDragging = true; lastMouse = { x: e.clientX, y: e.clientY }; });
+    window.addEventListener('mouseup', () => isDragging = false);
+    
+    canvas.addEventListener('mousemove', e => {
+        if (!isDragging) return;
+        const dx = e.clientX - lastMouse.x;
+        const dy = e.clientY - lastMouse.y;
+        
+        camera.y += dx * 0.01; // Rotate Y
+        camera.x += dy * 0.01; // Rotate X
+        
+        lastMouse = { x: e.clientX, y: e.clientY };
+    });
+
+    // Start loop
+    draw();
+    fetchMolecule(); // Load default on start
+</script>
+</body>
+</html>
