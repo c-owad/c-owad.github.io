@@ -12,6 +12,7 @@
             position: absolute; left: 0; top: 0; bottom: 0; width: 250px;
             background: rgba(0,0,0,0.8); border-right: 1px solid #333;
             padding: 20px; z-index: 20; display: flex; flex-direction: column;
+            box-sizing: border-box; /* <--- THIS FIXES THE OVERLAP */
         }
         h2 { color: #00ffc8; margin-top: 0; font-size: 18px; text-transform: uppercase; letter-spacing: 1px; }
         .molecule-btn {
