@@ -80,35 +80,37 @@
             currentPdbId = document.getElementById('pdb-input').value.toUpperCase();
             viewer.clear();
             
-            // 3Dmol natively fetches the PDB for visual rendering
             $3Dmol.download("pdb:" + currentPdbId, viewer, {}, function() {
-                // Style the main protein backbone as a sleek ribbon
                 viewer.setStyle({polymer: true}, {cartoon: {color: 'spectrum'}});
-                
-                // Style the ligands (drugs/small molecules) as clickable spheres/sticks
                 viewer.setStyle({hetflag: true}, {stick: {radius: 0.3}, sphere: {radius: 0.8}});
                 
-                // Add click event listener to the ligands
-                viewer.setClickable({hetflag: true}, true, handleLigandClick);
+                // BULLETPROOF LISTENER: We explicitly capture the 'atom' argument first
+                viewer.setClickable({hetflag: true}, true, function(atom, viewerObj, event, container) {
+                    console.log("Direct atom data from 3Dmol click:", atom);
+                    handleLigandClick(atom);
+                });
                 
                 viewer.zoomTo();
                 viewer.render();
             });
             
-            // Hide analytics until a click happens
             document.getElementById('analytics-content').style.display = 'none';
         }
 
-        // Triggered when the user clicks a ligand in the WebGL canvas
-        async function handleLigandClick(atom, glViewer) {
-            // Re-render the whole protein to reset any previous highlights
+        async function handleLigandClick(atom) {
+            // Safety check: if atom data is missing, stop the function before it hits your backend
+            if (!atom || atom.resn === undefined) {
+                console.error("The clicked object is missing chemical data:", atom);
+                document.getElementById('ui-ligand-name').innerText = "Click error. Check console.";
+                return;
+            }
+
             viewer.setStyle({polymer: true}, {cartoon: {color: 'spectrum'}});
             viewer.setStyle({hetflag: true}, {stick: {radius: 0.3}, sphere: {radius: 0.8}});
 
-            // Construct the unique key to match our Flask backend logic
+            // Construct the unique key. 
             const ligandKey = `${atom.resn}_${atom.chain}_${atom.resi}`;
             
-            // Show loading state in UI
             document.getElementById('analytics-content').style.display = 'block';
             document.getElementById('ui-ligand-name').innerText = `Analyzing ${atom.resn}...`;
             document.getElementById('ui-formula').innerText = '...';
@@ -116,18 +118,18 @@
             document.getElementById('ui-pocket').innerHTML = '';
 
             try {
-                // Fetch analytics from our custom Flask backend
-                const response = await fetch(`https://one5113hw4backend.onrender.com/api/analyze/${currentPdbId}/${ligandKey}`);
-                if (!response.ok) throw new Error("Backend analysis failed");
+                const targetUrl = `https://one5113hw4backend.onrender.com/api/analyze/${currentPdbId}/${ligandKey}`;
+                console.log("Sending fetch request to:", targetUrl); // Verify the exact URL being sent
+                
+                const response = await fetch(targetUrl);
+                if (!response.ok) throw new Error("Backend analysis failed with status: " + response.status);
                 
                 const data = await response.json();
 
-                // Update UI with RCSB Chemical Data
                 document.getElementById('ui-ligand-name').innerText = data.properties.name || data.ligand_id;
                 document.getElementById('ui-formula').innerText = data.properties.formula || 'Unknown';
                 document.getElementById('ui-weight').innerText = data.properties.weight ? `${data.properties.weight} g/mol` : 'Unknown';
 
-                // Update UI with Computed Binding Pocket
                 const pocketDiv = document.getElementById('ui-pocket');
                 data.binding_pocket.forEach(residue => {
                     let span = document.createElement('span');
@@ -136,25 +138,17 @@
                     pocketDiv.appendChild(span);
                 });
 
-                // --- 3D INTERACTIVITY: Highlight the pocket ---
-                // Parse out the sequence numbers from the backend string (e.g., "TRP120(A)" -> 120)
                 const interactingResis = data.binding_pocket.map(r => parseInt(r.match(/\d+/)[0]));
                 
-                // Dim the rest of the protein
                 viewer.setStyle({polymer: true}, {cartoon: {color: 'white', opacity: 0.3}});
-                
-                // Highlight the specific interacting amino acids with bright sticks
                 viewer.setStyle({resi: interactingResis}, {stick: {colorscheme: 'amino', radius: 0.2}});
-                
-                // Highlight the clicked ligand
                 viewer.setStyle({resn: atom.resn, chain: atom.chain, resi: atom.resi}, {sphere: {color: 'cyan'}});
                 
-                // Zoom camera into the binding pocket
                 viewer.zoomTo({resi: interactingResis});
                 viewer.render();
 
             } catch (error) {
-                console.error(error);
+                console.error("Fetch error details:", error);
                 document.getElementById('ui-ligand-name').innerText = "Error analyzing ligand.";
             }
         }
