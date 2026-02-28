@@ -100,7 +100,7 @@
         }
 
         // Triggered when the user clicks a ligand in the WebGL canvas
-        async function handleLigandClick(glViewer, atom) {
+        async function handleLigandClick(atom, glViewer) {
             // Re-render the whole protein to reset any previous highlights
             viewer.setStyle({polymer: true}, {cartoon: {color: 'spectrum'}});
             viewer.setStyle({hetflag: true}, {stick: {radius: 0.3}, sphere: {radius: 0.8}});
