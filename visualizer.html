@@ -170,39 +170,43 @@
         async function handleLigandClick(atom) {
             if (!atom || atom.resn === undefined) return;
         
-            // 1. Reset visual state
+            // 1. Reset Visuals & Show Loading
             viewer.setStyle({polymer: true}, {cartoon: {color: 'spectrum'}});
             viewer.setStyle({hetflag: true}, {stick: {radius: 0.3}, sphere: {radius: 0.8}});
         
             const ligandKey = `${atom.resn}_${atom.chain}_${atom.resi}`;
             
-            // 2. Clear UI and show loading states
             document.getElementById('analytics-instructions').style.display = 'none';
             document.getElementById('analytics-content').style.display = 'block';
             document.getElementById('ui-ligand-name').innerText = `Analyzing ${atom.resn}...`;
-            document.getElementById('ui-ai-summary').innerText = "AI is thinking..."; // Loading state
-            document.getElementById('ui-formula').innerText = '...';
-            document.getElementById('ui-weight').innerText = '...';
-            document.getElementById('ui-pocket').innerHTML = '';
+            document.getElementById('ui-ai-summary').innerText = "AI is thinking..."; 
         
             try {
                 const targetUrl = `https://one5113hw4backend.onrender.com/api/analyze/${currentPdbId}/${ligandKey}`;
                 const response = await fetch(targetUrl);
-                
                 if (!response.ok) throw new Error("Backend analysis failed");
                 
-                // THIS is where 'data' is defined
                 const data = await response.json();
         
-                // 3. Populate UI with the returned data
+                // --- PASTE THE NEW LOGIC HERE ---
+        
+                // 2. Always populate the Science Data first
                 document.getElementById('ui-ligand-name').innerText = data.properties.name || data.ligand_id;
                 document.getElementById('ui-formula').innerText = data.properties.formula || 'Unknown';
                 document.getElementById('ui-weight').innerText = data.properties.weight ? `${data.properties.weight} g/mol` : 'Unknown';
-                
-                // Update the AI Summary (MUST be inside this block)
-                document.getElementById('ui-ai-summary').innerText = data.ai_description || 'No summary generated.';
         
+                // 3. Handle the AI summary (Check for the "limit" or "unavailable" fallback strings)
+                const aiField = document.getElementById('ui-ai-summary');
+                if (data.ai_description.includes("limit") || data.ai_description.includes("unavailable")) {
+                    // Use a warning style so the user knows the app isn't "broken," just the AI is capped
+                    aiField.innerHTML = `<span style="color: #ffcc00; font-style: italic;">⚠️ ${data.ai_description}</span>`;
+                } else {
+                    aiField.innerText = data.ai_description;
+                }
+        
+                // 4. Update the Binding Pocket Tags
                 const pocketDiv = document.getElementById('ui-pocket');
+                pocketDiv.innerHTML = ''; 
                 data.binding_pocket.forEach(residue => {
                     let span = document.createElement('span');
                     span.className = 'residue-tag';
@@ -210,7 +214,7 @@
                     pocketDiv.appendChild(span);
                 });
         
-                // 4. 3D Highlighting
+                // 5. 3D Interactivity (Highlighting the Pocket)
                 const interactingResis = data.binding_pocket.map(r => parseInt(r.match(/\d+/)[0]));
                 viewer.setStyle({polymer: true}, {cartoon: {color: 'white', opacity: 0.3}});
                 viewer.setStyle({resi: interactingResis}, {stick: {colorscheme: 'amino', radius: 0.2}});
@@ -222,7 +226,7 @@
             } catch (error) {
                 console.error("Fetch error:", error);
                 document.getElementById('ui-ligand-name').innerText = "Error analyzing ligand.";
-                document.getElementById('ui-ai-summary').innerText = "Error connecting to AI agent.";
+                document.getElementById('ui-ai-summary').innerText = "Error connecting to backend.";
             }
         }
     </script>
