@@ -75,6 +75,10 @@
                     <div class="data-value" id="ui-ligand-name">Loading...</div>
                 </div>
                 <div class="data-card">
+                    <div class="data-label">AI Agent Summary</div>
+                    <div class="data-value" id="ui-ai-summary" style="font-size: 0.9rem; font-weight: normal; line-height: 1.4;">Waiting for selection...</div>
+                </div>
+                <div class="data-card">
                     <div class="data-label">Chemical Formula</div>
                     <div class="data-value" id="ui-formula">-</div>
                 </div>
@@ -175,7 +179,9 @@
             // Update UI
             document.getElementById('analytics-instructions').style.display = 'none';
             document.getElementById('analytics-content').style.display = 'block';
-            document.getElementById('ui-ligand-name').innerText = `Analyzing ${atom.resn}...`;
+            document.getElementById('ui-ligand-name').innerText = data.properties.name || data.ligand_id;
+            // new
+            document.getElementById('ui-ai-summary').innerText = data.ai_description || 'No summary generated.';
             document.getElementById('ui-formula').innerText = '...';
             document.getElementById('ui-weight').innerText = '...';
             document.getElementById('ui-pocket').innerHTML = '';
