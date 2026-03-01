@@ -169,36 +169,39 @@
 
         async function handleLigandClick(atom) {
             if (!atom || atom.resn === undefined) return;
-
-            // Reset visual state before highlighting new pocket
+        
+            // 1. Reset visual state
             viewer.setStyle({polymer: true}, {cartoon: {color: 'spectrum'}});
             viewer.setStyle({hetflag: true}, {stick: {radius: 0.3}, sphere: {radius: 0.8}});
-
+        
             const ligandKey = `${atom.resn}_${atom.chain}_${atom.resi}`;
             
-            // Update UI
+            // 2. Clear UI and show loading states
             document.getElementById('analytics-instructions').style.display = 'none';
             document.getElementById('analytics-content').style.display = 'block';
-            document.getElementById('ui-ligand-name').innerText = data.properties.name || data.ligand_id;
-            // new
-            document.getElementById('ui-ai-summary').innerText = data.ai_description || 'No summary generated.';
+            document.getElementById('ui-ligand-name').innerText = `Analyzing ${atom.resn}...`;
+            document.getElementById('ui-ai-summary').innerText = "AI is thinking..."; // Loading state
             document.getElementById('ui-formula').innerText = '...';
             document.getElementById('ui-weight').innerText = '...';
             document.getElementById('ui-pocket').innerHTML = '';
-
+        
             try {
-                // Ensure this points to your Render URL!
                 const targetUrl = `https://one5113hw4backend.onrender.com/api/analyze/${currentPdbId}/${ligandKey}`;
                 const response = await fetch(targetUrl);
                 
                 if (!response.ok) throw new Error("Backend analysis failed");
+                
+                // THIS is where 'data' is defined
                 const data = await response.json();
-
-                // Populate Analytics Data
+        
+                // 3. Populate UI with the returned data
                 document.getElementById('ui-ligand-name').innerText = data.properties.name || data.ligand_id;
                 document.getElementById('ui-formula').innerText = data.properties.formula || 'Unknown';
                 document.getElementById('ui-weight').innerText = data.properties.weight ? `${data.properties.weight} g/mol` : 'Unknown';
-
+                
+                // Update the AI Summary (MUST be inside this block)
+                document.getElementById('ui-ai-summary').innerText = data.ai_description || 'No summary generated.';
+        
                 const pocketDiv = document.getElementById('ui-pocket');
                 data.binding_pocket.forEach(residue => {
                     let span = document.createElement('span');
@@ -206,8 +209,8 @@
                     span.innerText = residue;
                     pocketDiv.appendChild(span);
                 });
-
-                // 3D Interactivity: Zoom to binding pocket
+        
+                // 4. 3D Highlighting
                 const interactingResis = data.binding_pocket.map(r => parseInt(r.match(/\d+/)[0]));
                 viewer.setStyle({polymer: true}, {cartoon: {color: 'white', opacity: 0.3}});
                 viewer.setStyle({resi: interactingResis}, {stick: {colorscheme: 'amino', radius: 0.2}});
@@ -215,10 +218,11 @@
                 
                 viewer.zoomTo({resi: interactingResis});
                 viewer.render();
-
+        
             } catch (error) {
                 console.error("Fetch error:", error);
                 document.getElementById('ui-ligand-name').innerText = "Error analyzing ligand.";
+                document.getElementById('ui-ai-summary').innerText = "Error connecting to AI agent.";
             }
         }
     </script>
